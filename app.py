@@ -5,6 +5,8 @@ from transformers import pipeline
 import time
 from datetime import datetime
 import json
+import pyttsx3
+from io import BytesIO
 
 # Set page config
 st.set_page_config(
@@ -98,16 +100,22 @@ with col1:
 
     if st.button("🔊 Read text aloud", key="read_aloud"):
         if user_text and user_text.strip():
-            st.markdown(
-                f"""
-                <script>
-                const msg = new SpeechSynthesisUtterance({json.dumps(user_text)});
-                msg.lang = 'en-US';
-                window.speechSynthesis.speak(msg);
-                </script>
-                """,
-                unsafe_allow_html=True
-            )
+            try:
+                # Initialize text-to-speech engine
+                engine = pyttsx3.init()
+                engine.setProperty('rate', 150)  # Speed of speech
+                
+                # Save audio to file
+                audio_file = "temp_audio.mp3"
+                engine.save_to_file(user_text, audio_file)
+                engine.runAndWait()
+                
+                # Play the audio
+                with open(audio_file, 'rb') as f:
+                    st.audio(f.read(), format="audio/mp3")
+                st.success("✅ Audio generated!")
+            except Exception as e:
+                st.error(f"Error generating audio: {str(e)}")
         else:
             st.warning("Please enter text before using the voice reader.")
 
