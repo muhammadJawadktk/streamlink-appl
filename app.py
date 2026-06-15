@@ -4,6 +4,7 @@ import plotly.express as px
 from transformers import pipeline
 import time
 from datetime import datetime
+import json
 
 # Set page config
 st.set_page_config(
@@ -94,6 +95,21 @@ with col1:
         height=150,
         key="text_input"
     )
+
+    if st.button("🔊 Read text aloud", key="read_aloud"):
+        if user_text and user_text.strip():
+            st.markdown(
+                f"""
+                <script>
+                const msg = new SpeechSynthesisUtterance({json.dumps(user_text)});
+                msg.lang = 'en-US';
+                window.speechSynthesis.speak(msg);
+                </script>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.warning("Please enter text before using the voice reader.")
 
 with col2:
     st.subheader("🎯 Analysis Options")
