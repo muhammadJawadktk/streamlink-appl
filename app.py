@@ -7,6 +7,8 @@ from datetime import datetime
 import json
 import asyncio
 from edge_tts import Communicate
+from io import BytesIO
+import os
 
 # Set page config
 st.set_page_config(
@@ -37,6 +39,20 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 if 'model_loaded' not in st.session_state:
     st.session_state.model_loaded = False
+if 'audio_cache' not in st.session_state:
+    st.session_state.audio_cache = {}
+
+# Text-to-speech function with caching
+async def generate_tts_audio(text: str) -> BytesIO:
+    """Generate audio using edge-tts with caching"""
+    # Use en-US-AriaNeural for better compatibility
+    communicate = Communicate(text, voice="en-US-AriaNeural")
+    audio_stream = BytesIO()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_stream.write(chunk["data"])
+    audio_stream.seek(0)
+    return audio_stream
 
 # Load model with caching
 @st.cache_resource
@@ -102,23 +118,27 @@ with col1:
         if user_text and user_text.strip():
             try:
                 with st.spinner("🔊 Generating audio..."):
-                    # Use edge-tts for cloud-based text-to-speech
-                    async def generate_audio():
-                        communicate = Communicate(user_text, "en-US")
-                        await communicate.save("temp_audio.mp3")
-                    
-                    # Run async function
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    loop.run_until_complete(generate_audio())
-                    loop.close()
+                    # Check cache first
+                    text_hash = hash(user_text)
+                    if text_hash in st.session_state.audio_cache:
+                        audio_data = st.session_state.audio_cache[text_hash]
+                    else:
+                        # Generate new audio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            audio_stream = loop.run_until_complete(generate_tts_audio(user_text))
+                            audio_data = audio_stream.getvalue()
+                            # Cache it
+                            st.session_state.audio_cache[text_hash] = audio_data
+                        finally:
+                            loop.close()
                     
                     # Play the audio
-                    with open("temp_audio.mp3", 'rb') as f:
-                        st.audio(f.read(), format="audio/mp3")
+                    st.audio(audio_data, format="audio/mp3")
                     st.success("✅ Audio generated!")
             except Exception as e:
-                st.error(f"Error generating audio: {str(e)}")
+                st.error(f"❌ Error generating audio: {str(e)}\n\nTry again or check your internet connection.")
         else:
             st.warning("Please enter text before using the voice reader.")
 
