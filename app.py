@@ -5,8 +5,8 @@ from transformers import pipeline
 import time
 from datetime import datetime
 import json
-import pyttsx3
-from io import BytesIO
+import asyncio
+from edge_tts import Communicate
 
 # Set page config
 st.set_page_config(
@@ -101,19 +101,22 @@ with col1:
     if st.button("🔊 Read text aloud", key="read_aloud"):
         if user_text and user_text.strip():
             try:
-                # Initialize text-to-speech engine
-                engine = pyttsx3.init()
-                engine.setProperty('rate', 150)  # Speed of speech
-                
-                # Save audio to file
-                audio_file = "temp_audio.mp3"
-                engine.save_to_file(user_text, audio_file)
-                engine.runAndWait()
-                
-                # Play the audio
-                with open(audio_file, 'rb') as f:
-                    st.audio(f.read(), format="audio/mp3")
-                st.success("✅ Audio generated!")
+                with st.spinner("🔊 Generating audio..."):
+                    # Use edge-tts for cloud-based text-to-speech
+                    async def generate_audio():
+                        communicate = Communicate(user_text, "en-US")
+                        await communicate.save("temp_audio.mp3")
+                    
+                    # Run async function
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(generate_audio())
+                    loop.close()
+                    
+                    # Play the audio
+                    with open("temp_audio.mp3", 'rb') as f:
+                        st.audio(f.read(), format="audio/mp3")
+                    st.success("✅ Audio generated!")
             except Exception as e:
                 st.error(f"Error generating audio: {str(e)}")
         else:
